@@ -14,14 +14,13 @@ html(lang='en')
         link(href='build/#{CSSVersions["base.css"]}', rel='stylesheet')
         
         //- Expose some config variables to the client side app
-        //- This needs to be handled more elegantly (and probably on the server side)
         script.
         
             var config = window.config = {
-                clientUrl: '#{app.locals.config.clientUrl}',
-                clientPort: '#{app.locals.config.clientPort}',
-                wsUrl: '#{app.locals.config.clientUrl}' + ':' + '#{app.locals.config.wsPort}',
-                winningViewDuration: #{app.locals.settings.winningViewDuration}
+                clientUrl: '#{clientUrl}',
+                clientPort: '#{clientPort}',
+                wsUrl: '#{clientUrl}' + ':' + '#{wsPort}',
+                winningViewDuration: #{winningViewDuration}
             };
             
             if(config.clientPort) {
@@ -45,4 +44,4 @@ html(lang='en')
     body
         #game.container
         audio#audio-stream: source
-        script#nodejs_loader(src='#{app.locals.config.clientUrl}:#{app.locals.config.wsPort}/socket.io/socket.io.js')
+        script#nodejs_loader(src='#{clientUrl}:#{wsPort}/socket.io/socket.io.js')
