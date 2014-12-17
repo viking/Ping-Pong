@@ -1,6 +1,8 @@
 # Si Ping Pong
 We hacked our Ping Pong table! [Read the blog post.](http://sidigital.co/blog/lab-notes-hacking-our-ping-pong-table)
 
+Note: Modified by Jeremy Stephens to work on a Raspberry Pi, without an Arduino.
+
 ## Technology
 - [node.js](http://nodejs.org)
 - [socket.io](http://socket.io/)
