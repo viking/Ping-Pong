@@ -1,9 +1,11 @@
 var
+	util = require('util'),
 	chalk = require('chalk'),
 	settings = require('../config').global,
+	EventEmitter = require('events').EventEmitter,
 	EloComparator = require('./EloComparator');
 
-function GameController(bookshelf, buttonControllers, stats, sockets) {
+function GameController(bookshelf, buttonControllers) {
 
 	this.bookshelf = bookshelf;
 	this.online = true;
@@ -14,8 +16,6 @@ function GameController(bookshelf, buttonControllers, stats, sockets) {
 	this.gameHistory = [];
 	this.inProgress = false;
 	this.elo = new EloComparator();
-	this.stats = stats;
-	this.sockets = sockets;
 
 	var _this = this;
 	this.buttonControllers.forEach(function(buttonController) {
@@ -27,26 +27,6 @@ function GameController(bookshelf, buttonControllers, stats, sockets) {
 		});
 	});
 	
-	this.stats.on('biggestWinningStreak', function(streak) {
-		_this.sockets.emit('stats.biggestWinningStreak', streak);
-	});
-	
-	this.stats.on('mostConsecutiveLosses', function(streak) {
-		_this.sockets.emit('stats.mostConsecutiveLosses', streak);
-	});
-	
-	this.stats.on('largestWhooping', function(whooping) {
-		_this.sockets.emit('stats.largestWhooping', whooping);
-	});
-	
-	this.stats.on('totalCompanyGames', function(count) {
-		_this.sockets.emit('stats.totalCompanyGames', count);
-	});
-	
-	this.stats.on('mostFrequentPlayer', function(player) {
-		_this.sockets.emit('stats.mostFrequentPlayer', player);
-	});
-
 	this.elo.on('tip.playerWin', function(player) {
 		
 		var
@@ -60,13 +40,15 @@ function GameController(bookshelf, buttonControllers, stats, sockets) {
 			pronoun = genderPronouns[player.gender];
 		}
 
-		_this.sockets.emit('game.message', {
+		_this.emit('game.message', {
 			message: 'A win for <span class="player-' + player.position + '">' + player.name + '</span> takes ' + pronoun + ' to rank ' + player.winningLeaderboardRank
 		});
 		
 	});
 
 }
+
+util.inherits(GameController, EventEmitter);
 
 /**
  * Add a player based on their rfid
@@ -94,7 +76,7 @@ GameController.prototype.addPlayer = function(playerID, custom) {
 		
 		if(!player) {
 			console.log(chalk.red('Player ' + value + ' not found'));
-			_this.sockets.emit('game.playerNotFound', {
+			_this.emit('game.playerNotFound', {
 				attr: attr,
 				value: value
 			});
@@ -123,17 +105,17 @@ GameController.prototype.addPlayer = function(playerID, custom) {
 		}
 		
 		// Notify the client a player has joined
-		_this.sockets.emit('player' + position + '.join', {
+		_this.emit('player' + position + '.join', {
 			player: player.toJSON(),
 			position: position
 		});
 		
-		_this.sockets.emit('player.join', {
+		_this.emit('player.join', {
 			player: player.toJSON(),
 			position: position
 		});
 		
-		_this.sockets.emit('leaderboard.hide');
+		_this.emit('leaderboard.hide');
 	
 	});
 	
@@ -150,7 +132,6 @@ GameController.prototype.reset = function() {
 	this.inProgress = false;
 	this.gameHistory = [];
 	this.elo.reset();
-	this.updateStatus();
 };
 
 /**
@@ -166,7 +147,7 @@ GameController.prototype.end = function(complete) {
 		updatedRanks = [];
 	
 	if(!complete) {
-		this.sockets.emit('game.reset');
+		this.emit('game.reset');
 		return this.reset();
 	}
 	
@@ -177,16 +158,17 @@ GameController.prototype.end = function(complete) {
 		updatedRanks = [this.elo.players[0].losingLeaderboardRank, this.elo.players[1].winningLeaderboardRank];
 	}
 	
-	this.sockets.emit('game.message', {
+	this.emit('game.message', {
 		message: '<span class="player-0">' + this.players[0].get('name') + '</span> is now rank ' + updatedRanks[0] + ', <span class="player-1">' + this.players[1].get('name') + '</span> is rank ' + updatedRanks[1]
 	});
 
-	this.sockets.emit('game.end', {
-		winner: winningPlayer - 1
+	this.emit('game.end', {
+		winner: winningPlayer - 1,
+		winnerName: this.players[winningPlayer - 1].get('name')
 	});
 	
 	setTimeout(function() {
-		_this.sockets.emit('game.reset');
+		_this.emit('game.reset');
 	}, settings.winningViewDuration + 200);
 
 	this.gameModel.set({
@@ -199,7 +181,7 @@ GameController.prototype.end = function(complete) {
 	// Add the game to the DB
 	this.gameModel.save()
 		.then(function() {
-			_this.stats.emit('game.end');
+			_this.emit('game.saved');
 			_this.reset();
 		});
 		
@@ -268,17 +250,17 @@ GameController.prototype.ready = function() {
 					lastGame[1].score = game.get('player0_score');
 				}
 				
-				_this.sockets.emit('stats.lastGameBetweenPlayers', {
+				_this.emit('stats.lastGameBetweenPlayers', {
 					lastGame: lastGame
 				});
 				
 			} else {
 			
-				_this.sockets.emit('stats.firstGameBetweenPlayers', {
+				_this.emit('stats.lastGameBetweenPlayers', {
 					lastGame: undefined
 				});
 			
-				_this.sockets.emit('game.message', {
+				_this.emit('game.message', {
 					message: 'Players first match'
 				});
 			
@@ -288,7 +270,7 @@ GameController.prototype.ready = function() {
 
 	// Find the players head to head score
 	this.bookshelf.Player.headToHead(this.players[0].get('id'), this.players[1].get('id')).then(function(scores) {
-		_this.sockets.emit('stats.headToHead', {
+		_this.emit('stats.headToHead', {
 			headToHead: scores
 		});
 	});
@@ -336,19 +318,21 @@ GameController.prototype.scored = function(event) {
 		score: this.score.slice()
 	});
 
-	this.sockets.emit('game.score', {
+	this.emit('game.score', {
 		player: playerID,
 		score: this.score[playerID],
-		gameScore: this.score
+		gameScore: this.score,
+		server: this.serve,
 	});
 	
 	if(this.nextPointWins() && this.leadingPlayer() - 1 == playerID) {
-		this.sockets.emit('game.gamePoint', {
-			player: playerID
+		this.emit('game.gamePoint', {
+			player: playerID,
+			playerName: this.players[playerID].get('name')
 		});
 	} else {
-		this.sockets.emit('game.notGamePoint', {
-			player: _this.leadingPlayer() - 1,
+		this.emit('game.notGamePoint', {
+			player: this.leadingPlayer() - 1,
 		});
 	}
 
@@ -362,8 +346,6 @@ GameController.prototype.scored = function(event) {
 
 	// Is the next point a winning one?
 	this.checkGamePoint();
-	
-	this.updateStatus();
 };
 
 /**
@@ -385,12 +367,12 @@ GameController.prototype.pointRemoved = function(event) {
 			score: this.score.slice()
 		});
 		
-		this.sockets.emit('game.cancelPoint', {
+		this.emit('game.cancelPoint', {
 			player: playerID,
 			score: this.score[playerID]
 		});
 		
-		this.sockets.emit('game.notGamePoint', {
+		this.emit('game.notGamePoint', {
 			player: playerID
 		});
 		
@@ -400,7 +382,6 @@ GameController.prototype.pointRemoved = function(event) {
 		
 		this.checkServerSwitch();
 		this.checkGamePoint();
-		this.updateStatus();
 		
 	}
 
@@ -450,8 +431,9 @@ GameController.prototype.checkServerSwitch = function(forceServe) {
 			score: this.score.slice()
 		});
 
-		this.sockets.emit('game.switchServer', {
-			player: this.serve
+		this.emit('game.switchServer', {
+			player: this.serve,
+			playerName: this.players[this.serve].get('name')
 		});
 		
 	}
@@ -513,37 +495,20 @@ GameController.prototype.checkGamePoint = function() {
 
 	if(!this.nextPointWins()) return;
 	
-	this.sockets.emit('game.nextPointWins', {
+	this.emit('game.nextPointWins', {
 		player: this.leadingPlayer() - 1
 	});
 	
 	if(this.leadingPlayer() == 1) {
-		this.sockets.emit("nextPointWins", { "player": 1 });
+		this.emit("nextPointWins", { "player": 1 });
 		console.log('Next point for player 1 wins');
 	}
 	
 	if(this.leadingPlayer() == 2) {
-		this.sockets.emit("nextPointWins", { "player": 2 });
+		this.emit("nextPointWins", { "player": 2 });
 		console.log('Next point for player 2 wins');
 	}
 	
-};
-
-/**
- * Send current game status to all clients
- */
-GameController.prototype.updateStatus = function() {
-	var stats = {
-		online: this.online
-	};
-	this.sockets.emit("stats", stats);
-};
-
-/**
- * Client Joined
- */
-GameController.prototype.clientJoined = function() {
-	this.stats.emit('client.join');
 };
 
 module.exports = GameController;

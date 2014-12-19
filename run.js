@@ -1,5 +1,5 @@
 var
-	environment = process.env.NODE_ENV = process.env.NODE_ENV || 'development';
+	environment = process.env.NODE_ENV = process.env.NODE_ENV || 'development',
 	config = require('./config'),
 	Server = require('./lib/Server');
 
