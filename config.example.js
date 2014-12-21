@@ -32,6 +32,7 @@ module.exports = {
     global: {
 	player1ButtonPin: 32,
 	player2ButtonPin: 36,
+	stopButtonPin: 38,
         serverSwitchLimit: 5, // How many points before service switches
         serverSwitchThreshold: 20, // When both players have reached this threshold, the server switches every time
         maxScore: 21,
