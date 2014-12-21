@@ -1,11 +1,18 @@
-var server = require('../server');
+var
+	environment = process.env.NODE_ENV = process.env.NODE_ENV || 'development',
+	config = require('./config'),
+	Server = require('./lib/Server'),
+	Button = require('./lib/Button');
 
-setTimeout(function() {
-	server.cardReader.emit('read', { rfid: 'abcdef' });
-	setTimeout(function() {
-		server.cardReader.emit('read', { rfid: '123456' });
-		setTimeout(function() {
-				server.button1.emit('pushed');
-		}, 2000);
-	}, 2000);
-}, 20000);
+// Setup bookshelf
+var
+	knex = require('knex')(config[environment].database),
+	bookshelf = require('bookshelf')(knex);
+
+// Setup models
+require('./models/Player')(bookshelf);
+require('./models/Game')(bookshelf);
+
+// Run server
+var server = new Server(config, environment, bookshelf);
+server.start();
