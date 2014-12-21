@@ -58,6 +58,7 @@ module.exports = function(bookshelf) {
 				limit = 10;
 			}	
 			return this.query('where', 'play_count', '>', '0').
+				query('where', 'guest', '!=', 1).
 				query('orderBy', 'elo', 'desc').
 				query('limit', limit).
 				fetchAll();
