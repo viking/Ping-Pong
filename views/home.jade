@@ -28,6 +28,14 @@ html(lang='en')
             }
 
         script(src='js/jquery.min.js')
+
+        script.
+            $(function() {
+                $("*").dblclick(function (event) {
+                    location.reload();
+                });
+            });
+
         script(src='build/#{JSVersions["main.js"]}')
 
         link(rel='shortcut icon', href='img/logos/startup_icon.png')
