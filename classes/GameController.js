@@ -83,16 +83,16 @@ GameController.prototype.addPlayer = function(playerID, custom) {
 			return;
 		}
 
+		if(_this.playerInGame(player.id)) {
+			console.log(chalk.red(player.get('name') + ' is already in the game!'));
+			return;
+		} 
+
 		if(_this.players.length === settings.maxPlayers) {
 			// A third player joined, prompting the game to be reset
 			console.log(chalk.yellow('A third player joined, resetting the game'));
 			return _this.end(false);
 		}
-		
-		if(_this.playerInGame(player.id)) {
-			console.log(chalk.red(player.get('name') + ' is already in the game!'));
-			return;
-		} 
 		
 		console.log(chalk.green('Player added: ' + player.get('name')));
 		
@@ -152,15 +152,17 @@ GameController.prototype.end = function(complete) {
 	}
 	
 	
-	if(winningPlayer - 1 === 0) {
-		updatedRanks = [this.elo.players[0].winningLeaderboardRank, this.elo.players[1].losingLeaderboardRank];
-	} else {
-		updatedRanks = [this.elo.players[0].losingLeaderboardRank, this.elo.players[1].winningLeaderboardRank];
-	}
+	if (this.gameRanked) {
+		if(winningPlayer - 1 === 0) {
+			updatedRanks = [this.elo.players[0].winningLeaderboardRank, this.elo.players[1].losingLeaderboardRank];
+		} else {
+			updatedRanks = [this.elo.players[0].losingLeaderboardRank, this.elo.players[1].winningLeaderboardRank];
+		}
 	
-	this.emit('game.message', {
-		message: '<span class="player-0">' + this.players[0].get('name') + '</span> is now rank ' + updatedRanks[0] + ', <span class="player-1">' + this.players[1].get('name') + '</span> is rank ' + updatedRanks[1]
-	});
+		this.emit('game.message', {
+			message: '<span class="player-0">' + this.players[0].get('name') + '</span> is now rank ' + updatedRanks[0] + ', <span class="player-1">' + this.players[1].get('name') + '</span> is rank ' + updatedRanks[1]
+		});
+	}
 
 	this.emit('game.end', {
 		winner: winningPlayer - 1,
@@ -187,10 +189,12 @@ GameController.prototype.end = function(complete) {
 		
 	this.players.forEach(function(player, i) {
 		
-		if(i === winningPlayer - 1) {
-			player.set('elo', _this.elo.players[i].winningRank);
-		} else {
-			player.set('elo', _this.elo.players[i].losingRank);
+		if (_this.gameRanked) {
+			if(i === winningPlayer - 1) {
+				player.set('elo', _this.elo.players[i].winningRank);
+			} else {
+				player.set('elo', _this.elo.players[i].losingRank);
+			}
 		}
 
 		// Increment play count
@@ -281,6 +285,8 @@ GameController.prototype.ready = function() {
  * Start the game
  */
 GameController.prototype.start = function(startingServe) {
+
+	var _this = this;
 	
 	if(!this.minPlayersAdded()) {
 		console.log(chalk.red('Can\'t start the game until ' + settings.minPlayers + ' players have joined'));
@@ -291,6 +297,12 @@ GameController.prototype.start = function(startingServe) {
 	this.checkServerSwitch(startingServe);
 	this.inProgress = true;
 
+	this.gameRanked = true;
+	this.players.forEach(function(player) {
+		if (player.get('guest') == 1) {
+			_this.gameRanked = false;
+		}
+	});
 };
 
 /**
@@ -324,6 +336,12 @@ GameController.prototype.scored = function(event) {
 		gameScore: this.score,
 		server: this.serve,
 	});
+
+	// Has anybody won?
+	if(this.checkWon()) {
+		return;
+	}
+
 	
 	if(this.nextPointWins() && this.leadingPlayer() - 1 == playerID) {
 		this.emit('game.gamePoint', {
@@ -336,10 +354,6 @@ GameController.prototype.scored = function(event) {
 		});
 	}
 
-	// Has anybody won?
-	if(this.checkWon()) {
-		return;
-	}
 
 	// Is it time to switch serves?
 	this.checkServerSwitch();
