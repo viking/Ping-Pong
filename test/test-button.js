@@ -10,6 +10,8 @@ button2.addListener('pushed', function(evt) {
 	console.log("Button 2 pushed!");
 });
 
+button1.poll();
+button2.poll();
 process.on('SIGINT', function() {
 	button1.stop();
 	button2.stop();
